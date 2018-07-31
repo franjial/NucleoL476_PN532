@@ -2,7 +2,7 @@
  * adafruit_pn532.c
  *
  *  Created on: 27 jul. 2018
- *      Author: francisco
+ *      Author: FJJA
  */
 
 
@@ -62,6 +62,77 @@ ERRORSTATUS PN532_WriteNIFrame(PN532* this, const char *data, ERRORCODE* error){
 
 	return SUC;
 }
+
+ERRORSTATUS PN532_ReadNIFrame(PN532* this, char *data, ERRORCODE* error){
+
+	BOOL finish;
+	int i;
+	uint8_t len = data[0];
+
+	/* wait status */
+	finish=FALSE;
+	while(finish==FALSE){
+		i = 0;
+		I2C_Recv(this->i2c, 7, data, &error); /* read frame header */
+
+		if(i==0 && data[1]==0x00){
+			/* Each time a status byte is read with NOT READY information, before retrying the host
+		     * controller must close the communication by sending an I2C STOP condition. */
+			I2C_EndTransmission(this->i2c, &error);
+		}
+		else if(data[1]==0x01){
+			finish = TRUE;
+		}
+	}
+	I2C_EndTransmission(this->i2c, &error);            // stop condition
+
+	if(PN532_IsACK(data, &error) == TRUE){
+		I2C_Recv(this->i2c, len, data, &error);        // recv response
+		I2C_EndTransmission(this->i2c, &error);
+	else{
+		//TODO error code
+		return ERR;
+	}
+
+}
+
+ERRORSTATUS PN532_InListPassiveTarget(PN532* this, uint8_t maxTg, PN532_PTT_CHOICES brTy, char* initiatorData, ERRORCODE* error){
+	char data[256];
+	uint8_t len;
+
+	if(initiatorData!=NULL){
+		len = initiatorData[0]+3;
+		//TODO copy initiatorData[1..] in data[4..]
+	}
+	else{
+		len = 3;
+	}
+
+	data[0] = len;
+	data[1] = 0x4A; /* command */
+	data[2] = maxTg;
+	data[3] = brTy;
+	if(initiatorData!=NULL){
+		//TODO str_cpy
+	}
+	PN532_WriteNIFrame(this, 1, data, error);
+	
+	switch(baudRate){
+		case PN532_B106TYPEA:{
+			data[0] = 2;
+			PN532_ReadNIFrame(this, data, error);
+			break;
+		}
+	}
+
+	return SUC;
+}
+
+ERRORSTATUS PN532_InDataExchange(PN532* this, int tg, const char* dataOut, ERRORCODE* error){
+
+	return SUC;
+}
+
 
 /* util */
 BOOL PN532_IsACK(const char* frame, ERRORCODE* error){
