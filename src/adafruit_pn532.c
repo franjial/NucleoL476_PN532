@@ -20,11 +20,12 @@ ERRORSTATUS PN532_On(PN532* this, PeriphI2C* wire, ERRORCODE* error){
 
 ERRORSTATUS PN532_WakeUp(PN532* this, ERRORCODE* error){
 	char frame[1];
+	ERRORSTATUS ret;
+
 	frame[0] = 0x00;
-	if(I2C_Send(this->i2c, PN532_I2C_ADDRESS, frame, error) == SUC){
-		I2C_EndTransmission(this->i2c, error);
-	}
-	return SUC;
+	ret = I2C_Send(this->i2c, PN532_I2C_ADDRESS, frame, error);
+	I2C_EndTransmission(this->i2c, error);
+	return ret;
 }
 
 /**
@@ -77,7 +78,12 @@ ERRORSTATUS PN532_WriteACK(PN532* this, ERRORCODE* error){
 	ack_seq[4] = 0x00;
 	ack_seq[5] = 0xff;
 	ack_seq[6] = 0x00;
-	I2C_Send(this->i2c, PN532_I2C_ADDRESS, ack_seq, error);
+
+	if(I2C_Send(this->i2c, PN532_I2C_ADDRESS, ack_seq, error)==ERR){
+		I2C_EndTransmission(this->i2c, error);
+		return ERR;
+	}
+
 	I2C_EndTransmission(this->i2c, error);
 	return SUC;
 }
@@ -92,6 +98,7 @@ ERRORSTATUS PN532_ReadACK(PN532* this, ERRORCODE* error){
 
 	/* wait status */
 	finish=FALSE;
+	//TODO timeout
 	while(finish==FALSE){
 		i = 0;
 		I2C_Recv(this->i2c, 7, data, error); /* read frame header */
@@ -152,10 +159,12 @@ ERRORSTATUS PN532_ReadNIFrame(PN532* this, char *data, int timeout, ERRORCODE* e
 		}
 		else if(data[1]==0x01){
 			finish = TRUE;
+			I2C_EndTransmission(this->i2c, error);            // stop condition
 		}
 	}
-	I2C_EndTransmission(this->i2c, error);            // stop condition
+
 	if((finish==FALSE) && (error!=NULL)){
+		I2C_EndTransmission(this->i2c, error);
 		*error = PN532_ERROR_TOUT;
 	}
 	return finish;
